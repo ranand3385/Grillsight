@@ -1,6 +1,4 @@
-"""
-MeatVision: Evaluation script — confusion matrix, per-class metrics,
-and benchmark inference speed.
+"""GrillSight: Evaluation — confusion matrix, per-class metrics, inference speed.
 
 Usage:
     python src/evaluate.py --checkpoint checkpoints/best_model.pt --data data
@@ -65,7 +63,7 @@ def evaluate(args):
     fig, ax = plt.subplots(figsize=(8, 7))
     disp = ConfusionMatrixDisplay(cm, display_labels=display_names)
     disp.plot(ax=ax, colorbar=True, cmap='Blues')
-    ax.set_title('MeatVision — Confusion Matrix', fontsize=14)
+    ax.set_title('GrillSight — Confusion Matrix', fontsize=14)
     plt.tight_layout()
     plt.savefig('confusion_matrix.png', dpi=150)
     print("Confusion matrix saved to confusion_matrix.png")
@@ -83,7 +81,7 @@ def evaluate(args):
     elapsed = time.perf_counter() - t0
     ms_per_frame = elapsed / reps * 1000
     fps = reps / elapsed
-    print(f"  Avg latency: {ms_per_frame:.2f} ms/frame  →  {fps:.1f} FPS  (device={device})")
+    print(f"  Avg latency: {ms_per_frame:.2f} ms/frame  ->  {fps:.1f} FPS  (device={device})")
 
     return all_preds, all_labels, report
 

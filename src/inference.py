@@ -1,16 +1,9 @@
-"""
-MeatVision: Real-time meat doneness detection via live webcam feed.
+"""GrillSight: Real-time meat doneness detection via webcam or video feed.
 
-Usage (webcam):
+Usage:
     python src/inference.py --checkpoint checkpoints/best_model.pt
-
-Usage (video file):
-    python src/inference.py --checkpoint checkpoints/best_model.pt --source path/to/video.mp4
-
-Usage (image):
-    python src/inference.py --checkpoint checkpoints/best_model.pt --source path/to/image.jpg --image
-
-Press 'q' to quit the live feed.
+    python src/inference.py --checkpoint checkpoints/best_model.pt --source video.mp4
+    python src/inference.py --checkpoint checkpoints/best_model.pt --source img.jpg --image
 """
 
 import argparse
@@ -34,10 +27,7 @@ from model import (
 
 def draw_overlay(frame, class_name: str, confidence: float, fps: float,
                  all_probs: list, class_names: list):
-    """
-    Render doneness label, confidence bar, per-class probability bars,
-    and FPS counter onto the given BGR frame (in-place).
-    """
+    """Render doneness label, probability bars, and FPS onto a BGR frame in-place."""
     h, w = frame.shape[:2]
     color = CLASS_COLORS.get(class_name, (200, 200, 200))
     display = CLASS_DISPLAY_NAMES.get(class_name, class_name)
@@ -106,7 +96,7 @@ def predict_image(image_path: str, model, transform, class_names, device):
     # Show with OpenCV
     frame = cv2.imread(image_path)
     frame = draw_overlay(frame, class_name, conf.item(), 0.0, probs_list, class_names)
-    cv2.imshow("MeatVision - Single Image", frame)
+    cv2.imshow("GrillSight - Single Image", frame)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
@@ -114,15 +104,12 @@ def predict_image(image_path: str, model, transform, class_names, device):
 # ── Real-time video loop ──────────────────────────────────────────────────────
 
 def run_realtime(source, model, transform, class_names, device):
-    """
-    Capture frames from `source` (int for webcam index, str for file/URL),
-    run inference on each frame, and display annotated output.
-    """
+    """Capture and annotate frames from a webcam index, video file, or RTSP URL."""
     cap = cv2.VideoCapture(source)
     if not cap.isOpened():
         raise RuntimeError(f"Cannot open video source: {source}")
 
-    print("MeatVision live feed started. Press 'q' to quit.")
+    print("GrillSight live feed started. Press 'q' to quit.")
 
     fps_buffer = []
     t_prev = time.perf_counter()
@@ -132,7 +119,6 @@ def run_realtime(source, model, transform, class_names, device):
         if not ret:
             break
 
-        # Convert BGR frame to PIL RGB for torchvision transforms
         rgb   = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         pil   = Image.fromarray(rgb)
         tensor = transform(pil).unsqueeze(0).to(device)
@@ -151,7 +137,7 @@ def run_realtime(source, model, transform, class_names, device):
 
         frame = draw_overlay(frame, class_name, conf.item(), fps,
                              probs_list, class_names)
-        cv2.imshow("MeatVision - Live Doneness Detector", frame)
+        cv2.imshow("GrillSight - Live Doneness Detector", frame)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
@@ -164,7 +150,7 @@ def run_realtime(source, model, transform, class_names, device):
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description='MeatVision real-time inference')
+    parser = argparse.ArgumentParser(description='GrillSight real-time inference')
     parser.add_argument('--checkpoint', required=True,
                         help='Path to trained model checkpoint (.pt)')
     parser.add_argument('--source', default=0,

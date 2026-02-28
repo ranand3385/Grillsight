@@ -1,4 +1,4 @@
-# MeatVision — Real-Time Meat Doneness Detector
+# GrillSight — Real-Time Meat Doneness Detector
 **ECE 570 Course Project · Track 2: ProductPrototype**
 
 A computer-vision system that classifies the **doneness level** of meat (beef,

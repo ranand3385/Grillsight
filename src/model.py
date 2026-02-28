@@ -1,8 +1,5 @@
 
-"""
-MeatVision: Meat Doneness Classifier
-Model architecture using EfficientNet-B0 transfer learning.
-"""
+"""GrillSight: EfficientNet-B0 meat doneness classifier."""
 
 import ssl
 import torch
@@ -43,13 +40,7 @@ CLASS_COLORS = {
 
 
 class MeatDonennessClassifier(nn.Module):
-    """
-    EfficientNet-B0 fine-tuned for meat doneness classification.
-
-    The backbone is pre-trained on ImageNet and the classifier head is
-    replaced with a custom MLP suited for doneness detection. Dropout is
-    used for regularization.
-    """
+    """EfficientNet-B0 backbone with custom 6-class doneness head."""
 
     def __init__(self, num_classes: int = 6, dropout: float = 0.3):
         super().__init__()
@@ -91,17 +82,7 @@ class MeatDonennessClassifier(nn.Module):
 
 def get_model(num_classes: int = 6, checkpoint_path: str = None,
               device: str = 'cpu') -> MeatDonennessClassifier:
-    """
-    Build (and optionally load) the MeatDonennessClassifier.
-
-    Args:
-        num_classes:      Number of doneness classes.
-        checkpoint_path:  Path to a saved .pt checkpoint (optional).
-        device:           'cpu' or 'cuda'.
-
-    Returns:
-        Model moved to the requested device.
-    """
+    """Build and optionally load a MeatDonennessClassifier."""
     model = MeatDonennessClassifier(num_classes=num_classes)
 
     if checkpoint_path is not None:

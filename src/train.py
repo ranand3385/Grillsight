@@ -1,6 +1,4 @@
-"""
-MeatVision: Training script with validation, early stopping, and
-learning-rate scheduling.
+"""GrillSight: Training script with validation, early stopping, and LR scheduling.
 
 Usage:
     python src/train.py --data data --epochs 30 --batch 32
@@ -163,7 +161,7 @@ def train(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Train MeatVision classifier')
+    parser = argparse.ArgumentParser(description='Train GrillSight classifier')
     parser.add_argument('--data',     default='data',       help='Dataset root')
     parser.add_argument('--output',   default='checkpoints',help='Checkpoint dir')
     parser.add_argument('--epochs',   type=int, default=30)

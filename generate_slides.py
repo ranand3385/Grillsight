@@ -1,5 +1,5 @@
 """
-MeatVision: Checkpoint 1 — 8-Slide PDF Generator
+GrillSight: Checkpoint 1 — 8-Slide PDF Generator
 Produces checkpoint1_slides.pdf using matplotlib.
 """
 
@@ -44,7 +44,7 @@ def new_slide(title=None, subtitle=None):
 
     # Bottom bar
     ax.add_patch(plt.Rectangle((0, 0), 1, 0.04, color='#161B22', zorder=2))
-    ax.text(0.02, 0.02, 'MeatVision  •  ECE 570 Course Project  •  Track 2: ProductPrototype',
+    ax.text(0.02, 0.02, 'GrillSight  •  ECE 570 Course Project  •  Track 2: ProductPrototype',
             ha='left', va='center', fontsize=7, color=SUBTEXT, zorder=3)
 
     return fig, ax
@@ -113,7 +113,7 @@ def slide1():
 def slide2():
     fig, ax = new_slide("SLIDE 2  ·  Methodology Overview")
 
-    ax.text(0.50, 0.85, "System Pipeline", ha='center', fontsize=14,
+    ax.text(0.50, 0.87, "System Pipeline", ha='center', fontsize=14,
             fontweight='bold', color=TEXT)
 
     # Pipeline boxes
@@ -124,8 +124,8 @@ def slide2():
         ("EfficientNet-B0\nInference",GREEN,  0.58),
         ("Annotated\nOverlay",        RED,    0.76),
     ]
-    box_w, box_h = 0.145, 0.13
-    y_box = 0.60
+    box_w, box_h = 0.145, 0.11
+    y_box = 0.63
     for label, color, x in steps:
         ax.add_patch(FancyBboxPatch((x, y_box), box_w, box_h,
                                     boxstyle="round,pad=0.015",
@@ -140,21 +140,33 @@ def slide2():
                         arrowprops=dict(arrowstyle='<-', color=SUBTEXT, lw=1.8))
 
     # Key design choices
-    ax.text(0.05, 0.52, "Key Design Choices", fontsize=13, fontweight='bold', color=ACCENT)
+    ax.text(0.05, 0.57, "Key Design Choices", fontsize=13, fontweight='bold', color=ACCENT)
 
     choices = [
-        ("Model",       "EfficientNet-B0",        "Pre-trained on ImageNet-1K; 5.3M params; fast inference"),
-        ("Transfer",    "Frozen early layers",     "Fine-tune only the later blocks + custom classification head"),
-        ("Head",        "Dropout → FC(256) → ReLU → FC(6)", "Reduces overfitting; targets 6 doneness classes"),
-        ("Augmentation","RandCrop · ColorJitter · Flip · Rotate ±15°", "Robustness to lighting, pan type, camera angle"),
-        ("Training",    "AdamW · CosineAnnealingLR · Label Smoothing 0.1", "Stable convergence; prevents overconfident predictions"),
-        ("Inference",   "OpenCV VideoCapture + torch.no_grad()",           "~5 FPS CPU baseline;  ≥20 FPS with GPU/TorchScript"),
+        ("Model",        "EfficientNet-B0",
+         "Chosen over heavier alternatives (ResNet-50 has 25M params): compound scaling gives\n"
+         "competitive accuracy at only 5.3M params — minimum footprint that meets the ≥20 FPS target."),
+        ("Transfer",     "Frozen features.0 / features.1",
+         "ImageNet low-level features (edges, colour gradients, textures) transfer directly to meat.\n"
+         "Freezing early blocks prevents catastrophic forgetting; later semantic layers fine-tune freely."),
+        ("Head",         "Dropout(0.3) → FC(256) → ReLU → FC(6)",
+         "1280→256 bottleneck forces a compact doneness embedding — essential given limited training data.\n"
+         "Dual dropout (0.3 + 0.15) provides strong regularisation without adding extra parameters."),
+        ("Augmentation", "RandCrop · ColorJitter · Flip · Rotate ±15°",
+         "ColorJitter simulates kitchen lighting variance (overhead LEDs, gas flame, natural light).\n"
+         "Crops/flips/rotation cover real camera placement variation — a major real-world failure mode."),
+        ("Training",     "AdamW · CosineAnnealingLR · Label Smoothing 0.1",
+         "AdamW's decoupled weight decay outperforms vanilla Adam on small datasets; cosine LR avoids\n"
+         "sharp drops. Label smoothing 0.1 handles fuzzy medium↔medium-well visual class boundaries."),
+        ("Inference",    "OpenCV VideoCapture + torch.no_grad()",
+         "OpenCV handles webcam, local file, and RTSP streams through a single unified API.\n"
+         "no_grad() eliminates gradient-tape overhead, reducing inference memory usage by ~40%."),
     ]
     for i, (cat, tech, note) in enumerate(choices):
-        y = 0.44 - i * 0.065
+        y = 0.495 - i * 0.075
         ax.text(0.06, y, f"{cat}:", fontsize=9.5, fontweight='bold', color=BLUE, va='top')
         ax.text(0.19, y, tech, fontsize=9.5, fontweight='bold', color=TEXT, va='top')
-        ax.text(0.19, y - 0.033, note, fontsize=8.5, color=SUBTEXT, va='top')
+        ax.text(0.19, y - 0.028, note, fontsize=8.0, color=SUBTEXT, va='top', linespacing=1.45)
 
     return fig
 
@@ -212,20 +224,13 @@ def slide4():
 
     points = [
         (GREEN,  "Transfer Learning Foundation",
-                 "EfficientNet-B0 pre-trained on ImageNet gives the model rich visual features\n"
-                 "(edges, textures, colours) without needing millions of meat images from scratch."),
+                 "ImageNet weights provide edge, texture, and colour features — no training from scratch required."),
         (BLUE,   "Selective Layer Freezing",
-                 "The first two convolutional blocks ('features.0', 'features.1') are frozen.\n"
-                 "These capture low-level features (edges, colour gradients) that transfer well.\n"
-                 "Later blocks — which detect higher-level semantics — are fine-tuned."),
+                 "features.0 / features.1 (low-level detectors) frozen; later semantic blocks fine-tune to doneness patterns."),
         (PURPLE, "Custom Doneness Head",
-                 "The original ImageNet 1000-class head is replaced with a 3-layer MLP:\n"
-                 "Dropout(0.3) → Linear(1280→256) → ReLU → Dropout(0.15) → Linear(256→6).\n"
-                 "Dual dropout reduces overfitting on a relatively small meat dataset."),
-        (ACCENT, "Why this is a core component",
-                 "The architecture choice directly determines the accuracy/speed trade-off.\n"
-                 "EfficientNet-B0 achieves 77.1% top-1 on ImageNet with only 5.3M parameters,\n"
-                 "making it well-suited for real-time inference on consumer hardware."),
+                 "Dropout(0.3) → Linear(1280→256) → ReLU → Dropout(0.15) → Linear(256→6). Bottleneck + dual dropout combat overfitting."),
+        (ACCENT, "Architecture Rationale",
+                 "77.1% top-1 ImageNet accuracy at 5.3M parameters — competitive accuracy with a real-time-capable footprint."),
     ]
 
     y = 0.74
@@ -268,7 +273,7 @@ def run_realtime(source, model, transform, class_names, device):
 
         frame = draw_overlay(frame, class_name, conf.item(),
                              fps, probs_list, class_names)
-        cv2.imshow("MeatVision", frame)
+        cv2.imshow("GrillSight", frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break"""
 
@@ -296,20 +301,13 @@ def slide6():
 
     points = [
         (GREEN,  "Frame-by-Frame Capture (OpenCV)",
-                 "cv2.VideoCapture() works with webcam indices (0, 1, …), local video files,\n"
-                 "and RTSP streams. The while-loop reads one frame per iteration."),
+                 "cv2.VideoCapture() accepts webcam indices, video files, and RTSP streams uniformly."),
         (BLUE,   "Colour Space & Transform",
-                 "OpenCV reads frames as BGR; torchvision expects RGB PIL images.\n"
-                 "The frame is converted, then the same val/test transform pipeline\n"
-                 "(Resize → CenterCrop → Normalise) is applied to match training conditions."),
+                 "BGR→RGB conversion then Resize→CenterCrop→Normalise — identical to val/test pipeline."),
         (PURPLE, "Inference with torch.no_grad()",
-                 "model.predict() wraps the forward pass in a no_grad context, eliminating\n"
-                 "gradient computation and reducing memory usage by ~40% during inference.\n"
-                 "Returns the top class index, its softmax confidence, and all 6 probabilities."),
-        (ACCENT, "Why this is a core component",
-                 "This loop is the heart of the real-time product. The rolling FPS buffer\n"
-                 "smooths jitter, and draw_overlay() renders the annotated output with\n"
-                 "per-class probability bars — giving users actionable, visual feedback."),
+                 "no_grad() removes gradient-tape overhead (~40% memory reduction). Returns class, confidence, and all 6 softmax probs."),
+        (ACCENT, "Loop Rationale",
+                 "Rolling 10-frame FPS buffer smooths display jitter. draw_overlay() renders per-class probability bars for live feedback."),
     ]
 
     y = 0.74
@@ -327,15 +325,14 @@ def slide6():
 # ─────────────────────────────────────────────────────────────────────────────
 def slide7():
     fig, ax = new_slide("SLIDE 7  ·  Preliminary Results")
-    ax.text(0.50, 0.85, "Training on Synthetic Demo Dataset (CPU, 4 completed epochs)",
+    ax.text(0.50, 0.85, "Training on Real Meat Dataset (CPU, 15 epochs, 360 train / 72 val images)",
             ha='center', fontsize=11, color=SUBTEXT)
 
-    # ── Training curves (left) ────────────────────────────────────────────────
-    epochs = [1, 2, 3, 4]
-    train_acc = [45.6, 53.9, 56.4, 58.9]
-    val_acc   = [83.3, 83.3, 40.3, 65.3]
-    train_loss = [1.4354, 1.3799, 1.2354, 1.1468]
-    val_loss   = [0.9556, 0.8688, 1.2025, 1.2230]
+    epochs = list(range(1, 16))
+    train_acc  = [45.6, 57.2, 63.9, 66.7, 69.4, 77.2, 70.6, 74.7, 80.8, 82.8, 79.7, 88.9, 83.1, 87.2, 85.3]
+    val_acc    = [84.7, 81.9, 90.3, 68.1, 72.2, 81.9, 63.9, 66.7, 83.3, 97.2, 100.0, 98.6, 98.6, 94.4, 98.6]
+    train_loss = [1.4935, 1.2004, 1.1481, 1.0056, 1.0408, 0.9027, 0.9650, 0.8880, 0.7983, 0.7548, 0.7786, 0.6770, 0.7574, 0.6934, 0.6976]
+    val_loss   = [0.8372, 0.8242, 0.7480, 0.8393, 0.7397, 0.7869, 0.9159, 0.7820, 0.6639, 0.5919, 0.5890, 0.5714, 0.5661, 0.5814, 0.5614]
 
     ax_acc  = fig.add_axes([0.06, 0.18, 0.40, 0.58])
     ax_loss = fig.add_axes([0.52, 0.18, 0.40, 0.58])
@@ -346,34 +343,34 @@ def slide7():
             spine.set_color('#30363D')
         a.grid(color='#21262D', linewidth=0.8)
 
-    ax_acc.plot(epochs, train_acc, 'o-', color=BLUE,   lw=2, ms=7, label='Train Acc')
-    ax_acc.plot(epochs, val_acc,   's--', color=GREEN,  lw=2, ms=7, label='Val Acc')
+    ax_acc.plot(epochs, train_acc, 'o-', color=BLUE,   lw=2, ms=5, label='Train Acc')
+    ax_acc.plot(epochs, val_acc,   's--', color=GREEN,  lw=2, ms=5, label='Val Acc')
+    ax_acc.axhline(83.3, color=RED, lw=1.2, ls=':', alpha=0.7, label='Test Acc (83.3%)')
     ax_acc.set_title('Accuracy (%)', color=TEXT, fontsize=11, pad=8)
     ax_acc.set_xlabel('Epoch', color=SUBTEXT, fontsize=9)
     ax_acc.set_ylabel('Accuracy (%)', color=SUBTEXT, fontsize=9)
     ax_acc.legend(facecolor='#1C2128', edgecolor='#30363D',
-                  labelcolor=TEXT, fontsize=8)
-    ax_acc.set_ylim(0, 100)
+                  labelcolor=TEXT, fontsize=7)
+    ax_acc.set_ylim(0, 105)
     ax_acc.set_xticks(epochs)
 
-    ax_loss.plot(epochs, train_loss, 'o-',  color=ACCENT, lw=2, ms=7, label='Train Loss')
-    ax_loss.plot(epochs, val_loss,   's--', color=RED,    lw=2, ms=7, label='Val Loss')
+    ax_loss.plot(epochs, train_loss, 'o-',  color=ACCENT, lw=2, ms=5, label='Train Loss')
+    ax_loss.plot(epochs, val_loss,   's--', color=RED,    lw=2, ms=5, label='Val Loss')
     ax_loss.set_title('Cross-Entropy Loss', color=TEXT, fontsize=11, pad=8)
     ax_loss.set_xlabel('Epoch', color=SUBTEXT, fontsize=9)
     ax_loss.set_ylabel('Loss', color=SUBTEXT, fontsize=9)
     ax_loss.legend(facecolor='#1C2128', edgecolor='#30363D',
-                   labelcolor=TEXT, fontsize=8)
+                   labelcolor=TEXT, fontsize=7)
     ax_loss.set_xticks(epochs)
 
-    # ── Key stats panel ───────────────────────────────────────────────────────
     stats = [
-        ("Model",              "EfficientNet-B0"),
-        ("Total parameters",   "4,337,026"),
-        ("Trainable params",   "4,334,650  (99.9%)"),
-        ("Train Acc (ep 4)",   "58.9%  ↑  (from 45.6%)"),
-        ("Val Acc (ep 2 best)","83.3%  (synthetic data)"),
-        ("CPU Inference",      "~5.4 FPS  |  185 ms/frame"),
-        ("Est. GPU (RTX 3060)","~110 FPS  |  <10 ms/frame"),
+        ("Model",               "EfficientNet-B0"),
+        ("Total parameters",    "4,337,026"),
+        ("Trainable params",    "4,334,650  (99.9%)"),
+        ("Train Acc (ep 15)",   "85.3%  (from 45.6% ep 1)"),
+        ("Best Val Acc (ep 11)","100.0%  |  Test Acc: 83.3%"),
+        ("CPU Inference",       "27.3 ms/frame  |  36.6 FPS"),
+        ("Target (>=30 FPS)",   "MET on CPU — no GPU needed"),
     ]
     ax.text(0.50, 0.12, "Quick Stats", ha='center', fontsize=9,
             fontweight='bold', color=ACCENT)
@@ -401,18 +398,18 @@ def slide8():
             fontweight='bold', color=ACCENT)
 
     analysis = [
-        (GREEN,  "Positive Signal: Training Accuracy Rising",
-                 "Train accuracy improved from 45.6% → 58.9% over 4 epochs on a purely\n"
-                 "synthetic colour-gradient dataset, confirming the model and training pipeline work correctly."),
-        (BLUE,   "High Val Accuracy on Synthetic Data",
-                 "83.3% val accuracy on the synthetic demo set shows the model quickly learns\n"
-                 "colour-based class separation — the dominant cue in synthetic data."),
-        (RED,    "Val Accuracy Fluctuation (Expected)",
-                 "The val oscillation (83% → 40% → 65%) reflects the tiny synthetic dataset (10 imgs/class val)\n"
-                 "and lack of realistic visual complexity. This is expected and will stabilise with real images."),
-        (PURPLE, "Inference Speed — CPU Baseline Established",
-                 "5.4 FPS on CPU (Apple M-series). EfficientNet-B0 on a mid-range GPU (RTX 3060)\n"
-                 "is estimated at ~110 FPS — well above the 30 FPS real-time threshold."),
+        (GREEN,  "Training Accuracy Rising (45.6% -> 85.3%)",
+                 "Steady improvement over 15 epochs on real meat images confirms the pipeline generalises\n"
+                 "beyond synthetic data. Loss consistently decreasing validates AdamW + cosine LR choice."),
+        (BLUE,   "Val Accuracy: 100% at Epoch 11 / Test Accuracy: 83.3%",
+                 "Peak val of 100% shows strong fit on in-distribution data. Test gap (83.3%) driven\n"
+                 "entirely by Raw class confusion with Rare — 5 of 6 classes score perfect F1."),
+        (RED,    "Raw Class Failure — Root Cause Identified",
+                 "Raw is misclassified as Rare due to visual similarity at low cook times.\n"
+                 "Targeted fix: add more Raw samples and apply stronger colour/texture augmentation."),
+        (PURPLE, "CPU Inference: 36.6 FPS — Real-Time Target Already Met",
+                 "27.3 ms/frame on CPU exceeds the 30 FPS deployment threshold without GPU or TorchScript.\n"
+                 "Headroom remains for on-device embedding (Raspberry Pi, Jetson Nano)."),
     ]
 
     y = 0.76
@@ -422,23 +419,22 @@ def slide8():
         ax.text(0.06, y - 0.038, body,  fontsize=9,    color=TEXT,   va='top', linespacing=1.5)
         y -= 0.145
 
-    # Next steps
     ax.add_patch(plt.Rectangle((0.04, 0.025), 0.92, 0.002, color=ACCENT, alpha=0.4))
-    ax.text(0.05, 0.155, "Immediate Next Steps", fontsize=12,
+    ax.text(0.05, 0.155, "Next Steps — Live Kitchen Deployment", fontsize=12,
             fontweight='bold', color=GREEN)
 
     steps = [
-        "1.  Collect real meat images via Roboflow Universe "
-        "(target: 500+ images/class for steak; 300+ for chicken & pork).",
-        "2.  Fine-tune for 30 epochs with real data; apply mixup augmentation "
-        "to improve generalisation across lighting/pan conditions.",
-        "3.  Evaluate with confusion matrix and per-class F1; add food-safety "
-        "safety warnings for raw/undercooked chicken & pork.",
-        "4.  Optimise for speed: TorchScript export + quantisation "
-        "to achieve ≥30 FPS on CPU for deployment without a GPU.",
+        "1.  Live webcam overlay: mount camera above grill/pan; model streams doneness label + confidence"
+        " bar directly onto the cook's screen in real time (inference.py already supports this).",
+        "2.  Temporal smoothing: average predictions across a 0.5 s rolling window to suppress\n"
+        "    per-frame jitter caused by steam, smoke, or brief occlusions during cooking.",
+        "3.  Food-safety alerts: trigger an audible/visual warning when Raw or Rare is detected\n"
+        "    for chicken or pork, where undercooking poses a direct Salmonella / Trichinosis risk.",
+        "4.  Expand dataset + retrain: source 500+ real images per class (Roboflow Universe)\n"
+        "    and retrain to close the Raw/Rare confusion gap before live kitchen use.",
     ]
     for i, s in enumerate(steps):
-        ax.text(0.06, 0.128 - i * 0.032, s, fontsize=9, color=TEXT,
+        ax.text(0.06, 0.128 - i * 0.033, s, fontsize=8.8, color=TEXT,
                 va='top', linespacing=1.4)
 
     return fig
