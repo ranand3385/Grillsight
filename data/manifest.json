@@ -1,0 +1,12 @@
+{
+  "type": "synthetic_demo",
+  "classes": [
+    "raw",
+    "rare",
+    "medium_rare",
+    "medium",
+    "medium_well",
+    "well_done"
+  ],
+  "images_per_class_train": 60
+}
