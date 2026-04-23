@@ -122,6 +122,23 @@ def get_inference_transform() -> transforms.Compose:
     ])
 
 
+def get_class_weights(data_root: str, class_names: list, device: str) -> torch.Tensor:
+    """Compute inverse-frequency class weights from the train split.
+
+    Classes with fewer samples receive a higher weight so the loss
+    penalises their errors proportionally more during training.
+    """
+    train_dir = Path(data_root) / 'train'
+    counts = torch.tensor(
+        [len(list((train_dir / c).glob('*'))) for c in class_names],
+        dtype=torch.float,
+    )
+    weights = counts.sum() / (len(class_names) * counts)
+    weights = weights / weights.sum() * len(class_names)
+    print(f"Class weights: { {c: f'{w:.3f}' for c, w in zip(class_names, weights.tolist())} }")
+    return weights.to(device)
+
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()

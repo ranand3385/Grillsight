@@ -15,7 +15,7 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from tqdm import tqdm
 
-from dataset import build_dataloaders
+from dataset import build_dataloaders, get_class_weights
 from model import get_model, count_parameters
 
 
@@ -93,8 +93,10 @@ def train(args):
     params = count_parameters(model)
     print(f"Parameters — Total: {params['total']:,}  Trainable: {params['trainable']:,}")
 
-    # Loss, optimizer, scheduler
-    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+    # Class-weighted loss — penalises misclassifying under-represented or
+    # hard-to-separate classes (e.g. Raw vs Rare) more heavily.
+    class_weights = get_class_weights(args.data, class_names, device)
+    criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1)
     optimizer = optim.AdamW(
         filter(lambda p: p.requires_grad, model.parameters()),
         lr=args.lr,

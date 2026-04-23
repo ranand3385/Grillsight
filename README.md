@@ -1,54 +1,85 @@
-# GrillSight — Real-Time Meat Doneness Detector
-**ECE 570 Course Project · Track 2: ProductPrototype**
+# GrillSight — Real-Time Meat Doneness Classifier
+**ECE 570 Course Project · Track 2: Product Prototype**
 
-A computer-vision system that classifies the **doneness level** of meat (beef,
-chicken, pork) in real time from a live webcam or video feed.
+A real-time computer-vision system that classifies the doneness level of meat
+(raw, rare, medium_rare, medium, medium_well, well_done) from a live webcam or
+video feed. Built on EfficientNet-B0 + class-adaptive offline augmentation.
+
+- **Test accuracy:** 98.6% (vs. 83.3% baseline)
+- **Raw-class F1:** 0.96 (vs. 0.00 baseline — class was completely failing)
+- **CPU inference:** 26.6 FPS, no GPU required
 
 ---
 
-## Project Structure
+## Repository Structure
 
 ```
-570 Project/
+570-Project/
 ├── src/
-│   ├── model.py          # EfficientNet-B0 transfer-learning classifier
-│   ├── dataset.py        # ImageFolder pipeline + augmentation
-│   ├── train.py          # Training loop (early stopping, LR scheduling)
-│   ├── inference.py      # Real-time webcam inference with OpenCV overlay
-│   └── evaluate.py       # Confusion matrix + inference speed benchmark
+│   ├── model.py          # EfficientNet-B0 + custom doneness head
+│   ├── dataset.py        # ImageFolder pipeline, transforms, class weights
+│   ├── train.py          # training loop (AdamW, cosine LR, early stop, weighted loss)
+│   ├── inference.py      # real-time webcam overlay
+│   └── evaluate.py       # confusion matrix + FPS benchmark
 ├── scripts/
-│   └── download_dataset.py  # Roboflow downloader or synthetic demo generator
-├── data/                    # Dataset (created by download_dataset.py)
-├── checkpoints/             # Saved model checkpoints (created during training)
-├── generate_slides.py       # Generates checkpoint1_slides.pdf
+│   ├── augment_dataset.py    # offline class-adaptive augmentation (CP2)
+│   └── download_dataset.py   # Roboflow or synthetic demo generator
+├── paper/                # ICLR-style final paper (paper.tex, paper.bib, figures/)
+├── data/                 # Dataset in ImageFolder layout (auto-generated demo or Roboflow)
+├── checkpoints_v2/       # Trained model (best_model.pt, history.json)
+├── generate_slides.py        # Checkpoint-1 slide generator (MeatVision baseline)
+├── generate_slides_cp2.py    # Checkpoint-2 slide generator (GrillSight)
+├── checkpoint1_slides.pdf
+├── checkpoint2_slides.pdf
 ├── requirements.txt
 └── README.md
 ```
 
 ---
 
-## Dependencies
+## Installation
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Required packages: `torch`, `torchvision`, `opencv-python`, `Pillow`,
-`numpy`, `matplotlib`, `scikit-learn`, `tqdm`, `requests`.
+**Required packages:** `torch`, `torchvision`, `opencv-python`, `Pillow`,
+`numpy`, `matplotlib`, `scikit-learn`, `tqdm`, `requests`. All are installable
+from PyPI; no custom wheels or system packages are required.
 
-> **macOS / Python 3.11 note:** The code patches SSL certificate verification
-> automatically (`ssl._create_unverified_context`).  Alternatively, run
-> `/Applications/Python 3.11/Install Certificates.command` once.
+No GPU is required — the final model runs at 26.6 FPS on a standard CPU.
 
 ---
 
 ## Dataset
 
-### Option A — Roboflow (recommended for real training)
+The dataset follows a standard PyTorch `ImageFolder` layout:
 
-1. Create a free account at <https://roboflow.com>.
-2. Search Roboflow Universe for a **steak doneness** or **meat quality** dataset.
-3. Click *Download → Folder Structure* and copy your API key.
+```
+data/
+  train/   val/   test/
+    raw/  rare/  medium_rare/  medium/  medium_well/  well_done/
+      *.jpg
+```
+
+### Option A — Automatic synthetic demo (default, no external data required)
+
+The project ships with a synthetic-demo generator that runs without any API keys
+or external downloads. It creates procedurally-generated colour-gradient images
+per doneness class:
+
+```bash
+python scripts/download_dataset.py demo --dest data --n 60
+```
+
+This produces 60 train / 12 val / 12 test images per class (504 total). This
+is the dataset used to produce all numbers in the paper and slides.
+
+### Option B — Real meat images via Roboflow Universe
+
+For production use, real meat images can be downloaded from Roboflow Universe.
+Create a free account at <https://roboflow.com>, find a steak-doneness dataset,
+then:
 
 ```bash
 python scripts/download_dataset.py roboflow \
@@ -59,111 +90,134 @@ python scripts/download_dataset.py roboflow \
     --dest      data
 ```
 
-### Option B — Synthetic demo dataset (smoke-test only)
+Requires `pip install roboflow`. The class-weighting in `src/train.py` auto-adapts
+to unequal class counts, so no code changes are needed for real data.
 
-Generates colour-gradient placeholder images — confirms the pipeline runs but
-produces no meaningful visual accuracy:
+---
+
+## Quick-Start Reproduction (end-to-end)
 
 ```bash
+# 1. Generate / fetch the dataset
 python scripts/download_dataset.py demo --dest data --n 60
-```
 
-### Expected directory layout after download
+# 2. Expand training set 5x via class-adaptive offline augmentation
+python scripts/augment_dataset.py --data data --factor 5
 
-```
-data/
-  train/
-    raw/          medium/
-    rare/         medium_well/
-    medium_rare/  well_done/
-  val/   <same classes>
-  test/  <same classes>
-```
+# 3. Train (20 epochs, lr=5e-4, CPU-OK, ~8 minutes)
+python src/train.py --data data --epochs 20 --batch 32 \
+    --lr 5e-4 --workers 0 --output checkpoints_v2
 
----
+# 4. Evaluate
+python src/evaluate.py --checkpoint checkpoints_v2/best_model.pt --data data
 
-## Training
-
-```bash
-cd src
-python train.py --data ../data --epochs 30 --batch 32
-```
-
-Key flags:
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--data` | `data` | Dataset root directory |
-| `--epochs` | `30` | Maximum training epochs |
-| `--batch` | `32` | Batch size |
-| `--lr` | `1e-3` | Initial learning rate |
-| `--patience` | `7` | Early-stopping patience (epochs) |
-| `--workers` | `4` | DataLoader worker threads (use `0` on macOS) |
-
-The best checkpoint is saved to `checkpoints/best_model.pt`.
-
----
-
-## Real-Time Inference
-
-### Webcam (default camera)
-
-```bash
-python src/inference.py --checkpoint checkpoints/best_model.pt
-```
-
-### Video file
-
-```bash
-python src/inference.py --checkpoint checkpoints/best_model.pt \
-    --source path/to/video.mp4
-```
-
-### Single image
-
-```bash
-python src/inference.py --checkpoint checkpoints/best_model.pt \
-    --source path/to/steak.jpg --image
-```
-
-Press **q** to quit the live feed.
-
----
-
-## Evaluation
-
-```bash
-python src/evaluate.py --checkpoint checkpoints/best_model.pt --data data
-```
-
-Outputs a classification report (per-class precision / recall / F1) and saves
-`confusion_matrix.png`.
-
----
-
-## Generate Checkpoint 1 Slides
-
-```bash
-python generate_slides.py
-# → checkpoint1_slides.pdf  (8 slides)
+# 5. Run live webcam inference (press 'q' to quit)
+python src/inference.py --checkpoint checkpoints_v2/best_model.pt
 ```
 
 ---
 
-## Code Authorship
+## Core Commands
 
-All code in this repository was written from scratch for this project:
+| Task | Command |
+|------|---------|
+| Generate demo dataset | `python scripts/download_dataset.py demo --dest data --n 60` |
+| Offline augment (5×) | `python scripts/augment_dataset.py --data data --factor 5` |
+| Train | `python src/train.py --data data --epochs 20 --workers 0 --output checkpoints_v2` |
+| Evaluate | `python src/evaluate.py --checkpoint checkpoints_v2/best_model.pt --data data` |
+| Live webcam | `python src/inference.py --checkpoint checkpoints_v2/best_model.pt` |
+| Single image | `python src/inference.py --checkpoint checkpoints_v2/best_model.pt --source img.jpg --image` |
+| Video file | `python src/inference.py --checkpoint checkpoints_v2/best_model.pt --source video.mp4` |
+| Regenerate CP1 slides | `python generate_slides.py` |
+| Regenerate CP2 slides | `python generate_slides_cp2.py` |
 
-| File | Description | Lines written by author |
-|------|-------------|------------------------|
-| `src/model.py` | EfficientNet-B0 wrapper + custom head | All (1–125) |
-| `src/dataset.py` | Transform pipeline + DataLoader builder | All (1–120) |
-| `src/train.py` | Training loop, early stopping, scheduler | All (1–105) |
-| `src/inference.py` | OpenCV real-time loop + overlay renderer | All (1–155) |
-| `src/evaluate.py` | Metrics + speed benchmark | All (1–75) |
-| `scripts/download_dataset.py` | Dataset download / generation | All (1–130) |
-| `generate_slides.py` | PDF slide generator | All (1–470) |
+---
 
-External libraries used (standard, unmodified):
-`torch`, `torchvision` (EfficientNet-B0 pre-trained weights from ImageNet),
-`opencv-python`, `matplotlib`, `scikit-learn`.
+## Code Authorship Statement
+
+All source code in this repository was written by the author (Rishith Anand)
+for this project. An LLM assistant (Anthropic Claude) was consulted during
+development for scaffolding and refactoring suggestions; no code was copied
+from any external public repository. Library usage (PyTorch, torchvision,
+OpenCV, scikit-learn) is standard and unmodified.
+
+### Files written entirely by the author
+
+| File | Lines | Role |
+|------|------:|------|
+| `src/model.py` | 1–123 | EfficientNet-B0 wrapper, custom MLP head, parameter counting |
+| `src/dataset.py` | 1–153 | Transform pipelines, ImageFolder builders, class-weight helper |
+| `src/train.py` | 1–172 | Training loop, early stopping, checkpointing |
+| `src/inference.py` | 1–204 | OpenCV real-time loop, overlay renderer, single-image and video modes |
+| `src/evaluate.py` | 1–97 | Classification report, confusion matrix, inference-speed benchmark |
+| `scripts/augment_dataset.py` | 1–84 | Offline class-adaptive augmentation (**new in CP2**) |
+| `scripts/download_dataset.py` | 1–147 | Roboflow downloader + synthetic-demo generator |
+| `generate_slides.py` | 1–466 | Checkpoint-1 slide PDF generator |
+| `generate_slides_cp2.py` | 1–343 | Checkpoint-2 slide PDF generator |
+| `paper/paper.tex` | 1–– | ICLR-style final paper |
+| `paper/paper.bib` | 1–– | Bibliography |
+
+### Changes made to prior code between checkpoints
+
+Prior code refers to code carried forward from Checkpoint 1. All edits are the
+author's own.
+
+| File | Line range | Change |
+|------|-----------:|--------|
+| `src/dataset.py` | 139–153 | Added `get_class_weights()` — computes inverse-frequency class weights from the train-split filesystem layout. |
+| `src/train.py` | 21 | Imported `get_class_weights` from `dataset`. |
+| `src/train.py` | 96–99 | Replaced unweighted `nn.CrossEntropyLoss(label_smoothing=0.1)` with class-weighted variant that auto-adapts to imbalanced data. |
+| `src/evaluate.py` | 84 | Replaced Unicode arrow in the benchmark print with ASCII `->` for Windows `cp1252`-codec compatibility. |
+| `src/*` | all docstrings | Trimmed multi-paragraph docstrings to one line each; removed verbose inline comments that duplicated the code. |
+
+### No external code copied
+
+No code in this repository was copied, adapted, or forked from any external
+public repository, tutorial, or sample project. All library calls follow
+official documentation (PyTorch, torchvision, OpenCV, scikit-learn). Pre-trained
+ImageNet weights for EfficientNet-B0 are downloaded automatically by
+`torchvision.models.efficientnet_b0(weights=EfficientNet_B0_Weights.IMAGENET1K_V1)`
+on first run.
+
+---
+
+## LLM Usage Disclosure
+
+An LLM assistant (Anthropic Claude) was used during development for:
+- Scaffolding the initial project structure and argparse wiring.
+- Drafting docstrings and the LaTeX structure of the final paper.
+- Proposing the outline of the offline-augmentation approach.
+- Slide-deck generation helper code.
+
+All modelling decisions, the per-class jitter magnitudes, the class-weighting
+formulation, the experimental protocol, the final authored paper, and all
+reported numbers are the author's own.
+
+---
+
+## Paper
+
+The final paper is in `paper/paper.tex`. Compile with:
+
+```bash
+cd paper
+pdflatex paper && bibtex paper && pdflatex paper && pdflatex paper
+```
+
+Or paste the files into <https://www.overleaf.com> as a new blank project.
+
+---
+
+## Results (reproduced on synthetic demo data)
+
+| Metric | CP1 baseline | GrillSight (CP2) |
+|--------|-------------:|-----------------:|
+| Overall test accuracy | 83.3% | **98.6%** |
+| Macro F1 | 0.78 | **0.99** |
+| Raw-class F1 | 0.00 | **0.96** |
+| Rare-class F1 | 0.67 | **0.96** |
+| Training images | 360 | 2,160 |
+| Epochs trained | 15 | 20 |
+| CPU inference (FPS) | 36.6 | 26.6 |
+
+See `paper/paper.pdf` for full analysis.
