@@ -1,11 +1,4 @@
-"""GrillSight: Offline augmentation to expand the training split.
-
-Reads every image in data/train/<class>/ and writes N augmented copies
-alongside the originals.  Val and test splits are left untouched.
-
-Usage:
-    python scripts/augment_dataset.py --data data --factor 5
-"""
+# GrillSight: offline augmentation that expands data/train/<class>/ by N copies per image.
 
 import argparse
 import random
@@ -15,8 +8,7 @@ from PIL import Image, ImageFilter
 from torchvision import transforms
 
 
-# Per-class augmentation strength — harder-to-distinguish classes get
-# stronger colour jitter so the model sees more variation.
+# Per-class ColorJitter magnitudes; raw/rare get stronger hue perturbation.
 CLASS_JITTER = {
     'raw':         dict(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.12),
     'rare':        dict(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.12),
@@ -26,6 +18,7 @@ CLASS_JITTER = {
     'well_done':   dict(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.05),
 }
 
+# Spatial transforms selected by seed.
 BASE_AUGMENTS = [
     transforms.RandomHorizontalFlip(p=1.0),
     transforms.RandomVerticalFlip(p=1.0),
@@ -38,6 +31,7 @@ BASE_AUGMENTS = [
 
 
 def augment_image(img: Image.Image, cls: str, seed: int) -> Image.Image:
+    # Apply one spatial transform plus per-class colour jitter.
     random.seed(seed)
     jitter = transforms.ColorJitter(**CLASS_JITTER[cls])
     pipeline = transforms.Compose([
@@ -49,6 +43,7 @@ def augment_image(img: Image.Image, cls: str, seed: int) -> Image.Image:
 
 
 def expand_split(data_root: Path, factor: int):
+    # Write `factor` augmented copies for every image in data/train/<class>/.
     train_dir = data_root / 'train'
     classes = sorted([d.name for d in train_dir.iterdir() if d.is_dir()])
 
@@ -77,8 +72,7 @@ def expand_split(data_root: Path, factor: int):
 def main():
     parser = argparse.ArgumentParser(description='Offline training-set augmentation')
     parser.add_argument('--data',   default='data', help='Dataset root')
-    parser.add_argument('--factor', type=int, default=5,
-                        help='Augmented copies per original image')
+    parser.add_argument('--factor', type=int, default=5, help='Augmented copies per original')
     args = parser.parse_args()
 
     print(f"Expanding train split by factor {args.factor} ...")

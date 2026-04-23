@@ -1,8 +1,4 @@
-"""GrillSight: Training script with validation, early stopping, and LR scheduling.
-
-Usage:
-    python src/train.py --data data --epochs 30 --batch 32
-"""
+# GrillSight: training loop with validation, early stopping, and cosine LR.
 
 import argparse
 import json
@@ -19,18 +15,15 @@ from dataset import build_dataloaders, get_class_weights
 from model import get_model, count_parameters
 
 
-# ── Training helpers ──────────────────────────────────────────────────────────
-
 def run_epoch(model, loader, criterion, optimizer, device, train=True):
-    """Run one epoch of training or validation. Returns (loss, accuracy)."""
+    # Run one epoch of training or validation; return (loss, accuracy).
     model.train() if train else model.eval()
 
     total_loss, total_correct, total_samples = 0.0, 0, 0
     ctx = torch.enable_grad() if train else torch.no_grad()
 
     with ctx:
-        for imgs, labels in tqdm(loader, desc='Train' if train else 'Val',
-                                 leave=False):
+        for imgs, labels in tqdm(loader, desc='Train' if train else 'Val', leave=False):
             imgs, labels = imgs.to(device), labels.to(device)
 
             if train:
@@ -54,7 +47,7 @@ def run_epoch(model, loader, criterion, optimizer, device, train=True):
 
 
 class EarlyStopping:
-    """Stop training when val loss doesn't improve for `patience` epochs."""
+    # Stop training when val loss has not improved for `patience` epochs.
 
     def __init__(self, patience: int = 7, min_delta: float = 1e-4):
         self.patience  = patience
@@ -74,13 +67,11 @@ class EarlyStopping:
         return self.stop
 
 
-# ── Main training loop ────────────────────────────────────────────────────────
-
 def train(args):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"Device: {device}")
 
-    # Data
+    # Build data loaders.
     train_loader, val_loader, test_loader, class_names = build_dataloaders(
         data_root=args.data,
         batch_size=args.batch,
@@ -88,13 +79,12 @@ def train(args):
     )
     num_classes = len(class_names)
 
-    # Model
+    # Build the model.
     model = get_model(num_classes=num_classes, device=device)
     params = count_parameters(model)
-    print(f"Parameters — Total: {params['total']:,}  Trainable: {params['trainable']:,}")
+    print(f"Parameters - Total: {params['total']:,}  Trainable: {params['trainable']:,}")
 
-    # Class-weighted loss — penalises misclassifying under-represented or
-    # hard-to-separate classes (e.g. Raw vs Rare) more heavily.
+    # Class-weighted cross-entropy loss with label smoothing.
     class_weights = get_class_weights(args.data, class_names, device)
     criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1)
     optimizer = optim.AdamW(
@@ -105,14 +95,14 @@ def train(args):
     scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=1e-6)
     early_stop = EarlyStopping(patience=args.patience)
 
-    # Checkpoint directory
+    # Prepare output directory.
     ckpt_dir = Path(args.output)
     ckpt_dir.mkdir(parents=True, exist_ok=True)
 
     history = {'train_loss': [], 'val_loss': [], 'train_acc': [], 'val_acc': []}
     best_val_acc = 0.0
 
-    print(f"\nTraining for up to {args.epochs} epochs …\n")
+    print(f"\nTraining for up to {args.epochs} epochs ...\n")
     for epoch in range(1, args.epochs + 1):
         t0 = time.time()
 
@@ -134,7 +124,7 @@ def train(args):
               f"Val Loss: {val_loss:.4f}  Acc: {val_acc:.3f} | "
               f"{elapsed:.1f}s")
 
-        # Save best model
+        # Save the best checkpoint.
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             torch.save({
@@ -149,12 +139,12 @@ def train(args):
             print(f"Early stopping at epoch {epoch}.")
             break
 
-    # Save training history
+    # Persist training history.
     with open(ckpt_dir / 'history.json', 'w') as f:
         json.dump(history, f, indent=2)
 
-    # Final test evaluation
-    print("\nEvaluating on test set …")
+    # Test-set evaluation.
+    print("\nEvaluating on test set ...")
     test_loss, test_acc = run_epoch(
         model, test_loader, criterion, optimizer, device, train=False)
     print(f"Test Loss: {test_loss:.4f}  Test Accuracy: {test_acc:.4f}")

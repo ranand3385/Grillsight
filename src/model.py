@@ -1,22 +1,21 @@
-
-"""GrillSight: EfficientNet-B0 meat doneness classifier."""
+# GrillSight: EfficientNet-B0 meat doneness classifier.
 
 import ssl
 import torch
 import torch.nn as nn
 from torchvision import models
 
-# Fix macOS Python 3.11 SSL certificate verification issue
+# Workaround for macOS Python 3.11 SSL cert verification.
 ssl._create_default_https_context = ssl._create_unverified_context
 
 
-# Doneness classes for beef/steak (most granular scale)
+# 6-class beef doneness scale.
 BEEF_CLASSES = ['raw', 'rare', 'medium_rare', 'medium', 'medium_well', 'well_done']
 
-# Safety-focused classes for poultry and pork
+# Binary safety scale for poultry and pork.
 POULTRY_PORK_CLASSES = ['raw', 'cooked']
 
-# Unified display names for UI
+# Display labels for the UI overlay.
 CLASS_DISPLAY_NAMES = {
     'raw':         'Raw',
     'rare':        'Rare',
@@ -27,35 +26,35 @@ CLASS_DISPLAY_NAMES = {
     'cooked':      'Cooked',
 }
 
-# Color coding for doneness levels (BGR for OpenCV)
+# BGR colour per class for OpenCV drawing.
 CLASS_COLORS = {
-    'raw':         (0, 0, 200),     # Red  - danger
-    'rare':        (0, 100, 255),   # Orange-red
-    'medium_rare': (0, 180, 255),   # Orange
-    'medium':      (0, 200, 100),   # Yellow-green
-    'medium_well': (0, 220, 0),     # Green
-    'well_done':   (0, 140, 0),     # Dark green
-    'cooked':      (0, 220, 0),     # Green
+    'raw':         (0, 0, 200),
+    'rare':        (0, 100, 255),
+    'medium_rare': (0, 180, 255),
+    'medium':      (0, 200, 100),
+    'medium_well': (0, 220, 0),
+    'well_done':   (0, 140, 0),
+    'cooked':      (0, 220, 0),
 }
 
 
 class MeatDonennessClassifier(nn.Module):
-    """EfficientNet-B0 backbone with custom 6-class doneness head."""
+    # EfficientNet-B0 backbone with custom 6-class doneness head.
 
     def __init__(self, num_classes: int = 6, dropout: float = 0.3):
         super().__init__()
         self.num_classes = num_classes
 
-        # Load EfficientNet-B0 pre-trained on ImageNet
+        # ImageNet-pretrained backbone.
         weights = models.EfficientNet_B0_Weights.IMAGENET1K_V1
         backbone = models.efficientnet_b0(weights=weights)
 
-        # Freeze early convolutional layers; fine-tune later blocks
+        # Freeze features.0 and features.1; fine-tune the rest.
         for name, param in backbone.named_parameters():
             if 'features.0' in name or 'features.1' in name:
                 param.requires_grad = False
 
-        # Replace the classifier head for meat doneness
+        # Custom doneness classification head.
         in_features = backbone.classifier[1].in_features
         backbone.classifier = nn.Sequential(
             nn.Dropout(p=dropout),
@@ -71,7 +70,7 @@ class MeatDonennessClassifier(nn.Module):
         return self.backbone(x)
 
     def predict(self, x: torch.Tensor):
-        """Return (class_index, confidence) for a single batch."""
+        # Return (class_index, confidence, full_probs) for a batch.
         self.eval()
         with torch.no_grad():
             logits = self(x)
@@ -82,7 +81,7 @@ class MeatDonennessClassifier(nn.Module):
 
 def get_model(num_classes: int = 6, checkpoint_path: str = None,
               device: str = 'cpu') -> MeatDonennessClassifier:
-    """Build and optionally load a MeatDonennessClassifier."""
+    # Build and optionally load a classifier on the given device.
     model = MeatDonennessClassifier(num_classes=num_classes)
 
     if checkpoint_path is not None:
@@ -94,7 +93,7 @@ def get_model(num_classes: int = 6, checkpoint_path: str = None,
 
 
 def count_parameters(model: nn.Module) -> dict:
-    """Return total and trainable parameter counts."""
+    # Count total and trainable parameters.
     total = sum(p.numel() for p in model.parameters())
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     return {'total': total, 'trainable': trainable}
@@ -105,7 +104,7 @@ if __name__ == '__main__':
     params = count_parameters(model)
     print(f"Total parameters:     {params['total']:,}")
     print(f"Trainable parameters: {params['trainable']:,}")
-    # Quick sanity-check forward pass
+    # Sanity-check forward pass.
     dummy = torch.randn(2, 3, 224, 224)
     out = model(dummy)
-    print(f"Output shape: {out.shape}")  # Expected: (2, 6)
+    print(f"Output shape: {out.shape}")

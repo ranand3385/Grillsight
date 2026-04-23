@@ -1,10 +1,4 @@
-"""GrillSight: Real-time meat doneness detection via webcam or video feed.
-
-Usage:
-    python src/inference.py --checkpoint checkpoints/best_model.pt
-    python src/inference.py --checkpoint checkpoints/best_model.pt --source video.mp4
-    python src/inference.py --checkpoint checkpoints/best_model.pt --source img.jpg --image
-"""
+# GrillSight: real-time meat doneness detection from webcam, video, or single image.
 
 import argparse
 import time
@@ -23,30 +17,28 @@ from model import (
 )
 
 
-# ── Overlay helpers ───────────────────────────────────────────────────────────
-
 def draw_overlay(frame, class_name: str, confidence: float, fps: float,
                  all_probs: list, class_names: list):
-    """Render doneness label, probability bars, and FPS onto a BGR frame in-place."""
+    # Render doneness label, probability bars, and FPS onto a BGR frame in-place.
     h, w = frame.shape[:2]
     color = CLASS_COLORS.get(class_name, (200, 200, 200))
     display = CLASS_DISPLAY_NAMES.get(class_name, class_name)
 
-    # Semi-transparent header banner
+    # Translucent header banner.
     overlay = frame.copy()
     cv2.rectangle(overlay, (0, 0), (w, 80), (20, 20, 20), -1)
     cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
 
-    # Main prediction label
+    # Prediction label.
     label = f"{display}  {confidence:.0%}"
     cv2.putText(frame, label, (15, 55),
                 cv2.FONT_HERSHEY_DUPLEX, 1.6, color, 3, cv2.LINE_AA)
 
-    # FPS counter
+    # FPS counter.
     cv2.putText(frame, f"{fps:.1f} FPS", (w - 140, 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 2, cv2.LINE_AA)
 
-    # Per-class probability bars (bottom panel)
+    # Per-class probability bars at the bottom.
     bar_h     = 22
     bar_pad   = 8
     panel_top = h - (len(class_names) * (bar_h + bar_pad) + bar_pad + 30)
@@ -59,10 +51,10 @@ def draw_overlay(frame, class_name: str, confidence: float, fps: float,
         bar_color = CLASS_COLORS.get(cls, (160, 160, 160))
         bar_width = int((w - 220) * prob)
 
-        # Background bar
+        # Bar background.
         cv2.rectangle(frame, (160, y - bar_h + 4), (w - 20, y + 4),
                       (60, 60, 60), -1)
-        # Filled portion
+        # Filled portion of the bar.
         if bar_width > 0:
             cv2.rectangle(frame, (160, y - bar_h + 4),
                           (160 + bar_width, y + 4), bar_color, -1)
@@ -76,10 +68,8 @@ def draw_overlay(frame, class_name: str, confidence: float, fps: float,
     return frame
 
 
-# ── Inference on single image ─────────────────────────────────────────────────
-
 def predict_image(image_path: str, model, transform, class_names, device):
-    """Run inference on a single image file and display the result."""
+    # Run inference on a single image file and display the result.
     img = Image.open(image_path).convert('RGB')
     tensor = transform(img).unsqueeze(0).to(device)
 
@@ -90,10 +80,10 @@ def predict_image(image_path: str, model, transform, class_names, device):
     print(f"\nPrediction: {CLASS_DISPLAY_NAMES.get(class_name, class_name)}")
     print(f"Confidence: {conf.item():.1%}")
     for cls, p in zip(class_names, probs_list):
-        bar = '█' * int(p * 30)
+        bar = '#' * int(p * 30)
         print(f"  {CLASS_DISPLAY_NAMES.get(cls, cls):14s} {bar:<30} {p:.1%}")
 
-    # Show with OpenCV
+    # Render annotated image via OpenCV.
     frame = cv2.imread(image_path)
     frame = draw_overlay(frame, class_name, conf.item(), 0.0, probs_list, class_names)
     cv2.imshow("GrillSight - Single Image", frame)
@@ -101,10 +91,8 @@ def predict_image(image_path: str, model, transform, class_names, device):
     cv2.destroyAllWindows()
 
 
-# ── Real-time video loop ──────────────────────────────────────────────────────
-
 def run_realtime(source, model, transform, class_names, device):
-    """Capture and annotate frames from a webcam index, video file, or RTSP URL."""
+    # Capture and annotate frames from a webcam index, video file, or RTSP URL.
     cap = cv2.VideoCapture(source)
     if not cap.isOpened():
         raise RuntimeError(f"Cannot open video source: {source}")
@@ -127,7 +115,7 @@ def run_realtime(source, model, transform, class_names, device):
         class_name = class_names[pred.item()]
         probs_list = probs.squeeze().tolist()
 
-        # Compute smoothed FPS
+        # 10-frame rolling FPS average.
         t_now = time.perf_counter()
         fps_buffer.append(1.0 / max(t_now - t_prev, 1e-6))
         if len(fps_buffer) > 10:
@@ -147,8 +135,6 @@ def run_realtime(source, model, transform, class_names, device):
     print("Live feed closed.")
 
 
-# ── Entry point ───────────────────────────────────────────────────────────────
-
 def main():
     parser = argparse.ArgumentParser(description='GrillSight real-time inference')
     parser.add_argument('--checkpoint', required=True,
@@ -164,7 +150,7 @@ def main():
     device = args.device or ('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Running on: {device}")
 
-    # Load checkpoint
+    # Load trained checkpoint.
     ckpt = torch.load(args.checkpoint, map_location=device)
     class_names = ckpt.get('class_names', BEEF_CLASSES)
     num_classes = len(class_names)
@@ -175,7 +161,7 @@ def main():
 
     transform = get_inference_transform()
 
-    # Determine source type
+    # Coerce numeric webcam indices from string.
     source = args.source
     if isinstance(source, str) and source.isdigit():
         source = int(source)

@@ -1,10 +1,4 @@
-"""GrillSight: Dataset loading and augmentation pipeline.
-
-Expected directory structure:
-    data/
-        train/  val/  test/
-            raw/  rare/  medium_rare/  medium/  medium_well/  well_done/
-"""
+# GrillSight: ImageFolder loaders, transforms, and class-weight helper.
 
 from pathlib import Path
 from typing import Tuple, Optional
@@ -14,15 +8,16 @@ from torch.utils.data import DataLoader, WeightedRandomSampler
 from torchvision import datasets, transforms
 
 
-# ── Normalization constants (ImageNet statistics for transfer learning) ──────
+# ImageNet normalisation statistics for transfer learning.
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD  = [0.229, 0.224, 0.225]
 
-IMAGE_SIZE = 224   # EfficientNet-B0 default input size
+# EfficientNet-B0 input resolution.
+IMAGE_SIZE = 224
 
 
 def get_transforms(split: str) -> transforms.Compose:
-    """Return transforms for train (augmented) or val/test (deterministic)."""
+    # Return the training or val/test transform pipeline.
     if split == 'train':
         return transforms.Compose([
             transforms.RandomResizedCrop(IMAGE_SIZE, scale=(0.7, 1.0)),
@@ -37,9 +32,10 @@ def get_transforms(split: str) -> transforms.Compose:
             transforms.ToTensor(),
             transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
         ])
-    else:  # 'val' or 'test'
+    else:
+        # Deterministic pipeline for val and test.
         return transforms.Compose([
-            transforms.Resize(int(IMAGE_SIZE * 1.14)),   # 256 for 224 crop
+            transforms.Resize(int(IMAGE_SIZE * 1.14)),
             transforms.CenterCrop(IMAGE_SIZE),
             transforms.ToTensor(),
             transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
@@ -52,7 +48,7 @@ def build_dataloaders(
     num_workers: int = 4,
     use_weighted_sampler: bool = True,
 ) -> Tuple[DataLoader, DataLoader, DataLoader, list]:
-    """Build train/val/test DataLoaders from an ImageFolder directory structure."""
+    # Build train, val, and test DataLoaders from an ImageFolder layout.
     root = Path(data_root)
 
     train_dataset = datasets.ImageFolder(
@@ -70,7 +66,7 @@ def build_dataloaders(
 
     class_names = train_dataset.classes
 
-    # Weighted sampler to handle class imbalance
+    # Weighted sampler balances class frequency across batches.
     sampler = None
     if use_weighted_sampler:
         targets = torch.tensor(train_dataset.targets)
@@ -113,7 +109,7 @@ def build_dataloaders(
 
 
 def get_inference_transform() -> transforms.Compose:
-    """Minimal transform for single-frame real-time inference."""
+    # Single-frame transform used at inference time.
     return transforms.Compose([
         transforms.Resize(int(IMAGE_SIZE * 1.14)),
         transforms.CenterCrop(IMAGE_SIZE),
@@ -123,11 +119,7 @@ def get_inference_transform() -> transforms.Compose:
 
 
 def get_class_weights(data_root: str, class_names: list, device: str) -> torch.Tensor:
-    """Compute inverse-frequency class weights from the train split.
-
-    Classes with fewer samples receive a higher weight so the loss
-    penalises their errors proportionally more during training.
-    """
+    # Compute inverse-frequency class weights from the train split.
     train_dir = Path(data_root) / 'train'
     counts = torch.tensor(
         [len(list((train_dir / c).glob('*'))) for c in class_names],

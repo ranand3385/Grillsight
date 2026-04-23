@@ -1,8 +1,4 @@
-"""GrillSight: Evaluation — confusion matrix, per-class metrics, inference speed.
-
-Usage:
-    python src/evaluate.py --checkpoint checkpoints/best_model.pt --data data
-"""
+# GrillSight: classification report, confusion matrix, and CPU inference benchmark.
 
 import argparse
 import time
@@ -26,7 +22,7 @@ from model import get_model, CLASS_DISPLAY_NAMES
 def evaluate(args):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    # Load checkpoint
+    # Load checkpoint and class names.
     ckpt = torch.load(args.checkpoint, map_location=device)
     class_names = ckpt['class_names']
     num_classes  = len(class_names)
@@ -51,27 +47,27 @@ def evaluate(args):
     all_preds  = torch.cat(all_preds).numpy()
     all_labels = torch.cat(all_labels).numpy()
 
-    # Classification report
+    # Per-class classification report.
     display_names = [CLASS_DISPLAY_NAMES.get(c, c) for c in class_names]
     report = classification_report(
         all_labels, all_preds, target_names=display_names)
     print("\nClassification Report:")
     print(report)
 
-    # Confusion matrix
+    # Confusion matrix figure.
     cm = confusion_matrix(all_labels, all_preds)
     fig, ax = plt.subplots(figsize=(8, 7))
     disp = ConfusionMatrixDisplay(cm, display_labels=display_names)
     disp.plot(ax=ax, colorbar=True, cmap='Blues')
-    ax.set_title('GrillSight — Confusion Matrix', fontsize=14)
+    ax.set_title('GrillSight - Confusion Matrix', fontsize=14)
     plt.tight_layout()
     plt.savefig('confusion_matrix.png', dpi=150)
     print("Confusion matrix saved to confusion_matrix.png")
 
-    # Inference speed benchmark
-    print("\nBenchmarking inference speed …")
+    # CPU inference-speed benchmark.
+    print("\nBenchmarking inference speed ...")
     dummy = torch.randn(1, 3, 224, 224).to(device)
-    # Warmup
+    # Warmup passes.
     for _ in range(10):
         model(dummy)
     t0 = time.perf_counter()
